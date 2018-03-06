@@ -2,13 +2,28 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
     using System.Text;
 
     public class MidiFile
     {
+        public readonly int Format;
+
         public readonly int TicksPerQuarterNote;
 
         public readonly MidiTrack[] Tracks;
+
+        public readonly int TracksCount;
+
+        public MidiFile(Stream stream)
+            : this(Reader.ReadAllBytesFromStream(stream))
+        {
+        }
+
+        public MidiFile(string path)
+            : this(File.ReadAllBytes(path))
+        {
+        }
 
         public MidiFile(byte[] data)
         {
@@ -24,8 +39,8 @@
                 throw new FormatException("Invalid header length (expected 6)");
             }
 
-            var format = Reader.Read16(data, ref position);
-            var tracksCount = Reader.Read16(data, ref position);
+            this.Format = Reader.Read16(data, ref position);
+            this.TracksCount = Reader.Read16(data, ref position);
             this.TicksPerQuarterNote = Reader.Read16(data, ref position);
 
             if ((this.TicksPerQuarterNote & 0x8000) != 0)
@@ -33,9 +48,9 @@
                 throw new FormatException("Invalid timing mode (SMPTE timecode not supported)");
             }
 
-            this.Tracks = new MidiTrack[tracksCount];
+            this.Tracks = new MidiTrack[this.TracksCount];
 
-            for (var i = 0; i < tracksCount; i++)
+            for (var i = 0; i < this.TracksCount; i++)
             {
                 this.Tracks[i] = ParseTrack(i, data, ref position);
             }
@@ -50,22 +65,19 @@
         {
             switch (metaEventType)
             {
-                // Tempo
-                case 0x51:
+                case (byte)MetaEventType.Tempo:
                     var mspqn = (data[position + 1] << 16) | (data[position + 2] << 8) | data[position + 3];
                     data1 = (byte)(60000000.0 / mspqn);
                     position += 4;
                     return true;
 
-                // Time Signature
-                case 0x58:
+                case (byte)MetaEventType.TimeSignature:
                     data1 = data[position + 1];
                     data2 = (byte)Math.Pow(2.0, data[position + 2]);
                     position += 5;
                     return true;
 
-                // Key Signature
-                case 0x59:
+                case (byte)MetaEventType.KeySignature:
                     data1 = data[position + 1];
                     data2 = data[position + 2];
                     position += 3;
@@ -119,9 +131,9 @@
                     var data2 = (eventType & 0xE0) != 0xC0 ? data[position++] : (byte)0;
 
                     // Convert NoteOn events with 0 velocity into NoteOff events
-                    if (eventType == 0x90 && data2 == 0)
+                    if (eventType == (byte)MidiEventType.NoteOn && data2 == 0)
                     {
-                        eventType = 0x80;
+                        eventType = (byte)MidiEventType.NoteOff;
                     }
 
                     track.MidiEvents.Add(
@@ -195,6 +207,21 @@
                 return data[i++];
             }
 
+            public static byte[] ReadAllBytesFromStream(Stream input)
+            {
+                var buffer = new byte[16 * 1024];
+                using (var ms = new MemoryStream())
+                {
+                    int read;
+                    while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                    {
+                        ms.Write(buffer, 0, read);
+                    }
+
+                    return ms.ToArray();
+                }
+            }
+
             public static string ReadString(byte[] data, ref int i, int length)
             {
                 var result = Encoding.ASCII.GetString(data, i, length);
@@ -248,6 +275,20 @@
         public byte Arg2;
 
         public byte Arg3;
+
+        public MidiEventType MidiEventType => (MidiEventType)this.Type;
+
+        public MetaEventType MetaEventType => (MetaEventType)this.Arg1;
+
+        public int Channel => this.Arg1;
+
+        public int Note => this.Arg2;
+
+        public int Velocity => this.Arg3;
+
+        public ControlChangeType ControlChangeType => (ControlChangeType)this.Arg2;
+
+        public int Value => this.Arg3;
     }
 
     public struct TextEvent
@@ -257,5 +298,59 @@
         public byte Type;
 
         public string Value;
+
+        public TextEventType TextEventType => (TextEventType)this.Type;
+    }
+
+    public enum MidiEventType : byte
+    {
+        NoteOff = 0x80,
+
+        NoteOn = 0x90,
+
+        KeyAfterTouch = 0xA0,
+
+        ControlChange = 0xB0,
+
+        ProgramChange = 0xC0,
+
+        ChannelAfterTouch = 0xD0,
+
+        PitchBendChange = 0xE0,
+
+        MetaEvent = 0xFF
+    }
+
+    public enum ControlChangeType : byte
+    {
+        BankSelect = 0x00,
+
+        Modulation = 0x01,
+
+        Volume = 0x07,
+
+        Balance = 0x08,
+
+        Pan = 0x0A,
+
+        Sustain = 0x40
+    }
+
+    public enum TextEventType : byte
+    {
+        Text = 0x01,
+
+        TrackName = 0x03,
+
+        Lyric = 0x05,
+    }
+
+    public enum MetaEventType : byte
+    {
+        Tempo = 0x51,
+
+        TimeSignature = 0x58,
+
+        KeySignature = 0x59
     }
 }

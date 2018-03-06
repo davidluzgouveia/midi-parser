@@ -43,8 +43,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
-    <Compile Include="..\src\MidiFile.cs" />
-    <Compile Include="..\src\MidiFileHelper.cs" />
+    <Compile Include="..\MidiFile.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
