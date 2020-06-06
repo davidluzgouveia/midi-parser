@@ -238,6 +238,8 @@
                     return result;
                 }
 
+				result &= 0x7F;
+
                 for (var j = 0; j < 3; j++)
                 {
                     var value = (int)data[i++];
