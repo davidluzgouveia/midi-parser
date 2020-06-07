@@ -5,6 +5,12 @@ A small midi parser written in C#. Just drop [`MidiFile.cs`](MidiFile.cs) into y
 ```c#
 var midiFile = new MidiFile("song.mid");
 
+// 0 = single-track, 1 = multi-track, 2 = multi-pattern
+var midiFileformat = midiFile.Format;
+
+// also known as pulses per quarter note
+var ticksPerQuarterNote = midiFile.TicksPerQuarterNote;
+
 foreach(var track in midiFile.Tracks)
 {
     foreach(var midiEvent in track.MidiEvents)
